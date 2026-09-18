@@ -8,6 +8,7 @@
 		"install": "echo 'Skipping automatic native build - use build script instead'"
 	},
 	"dependencies": {
-		"node-addon-api": "^8.5.0"
+		"node-addon-api": "^8.5.0",
+		"node-gyp": "^12.1.0"
 	}
 }

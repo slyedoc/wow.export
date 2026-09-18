@@ -999,7 +999,16 @@ class ADTExporter {
 						// Create new GL context and compile shaders.
 						if (!gl) {
 							glCanvas = document.createElement('canvas');
-							gl = glCanvas.getContext('webgl2');
+							gl = glCanvas.getContext('webgl2', {
+								preserveDrawingBuffer: true,
+								antialias: false,
+								depth: false,
+								stencil: false
+							});
+							if (gl) {
+								console.log('WebGL2 context created successfully');
+								console.log('WebGL2 renderer:', gl.getParameter(gl.RENDERER));
+							}
 
 							if (!gl)
 								throw new Error('WebGL2 not supported');
