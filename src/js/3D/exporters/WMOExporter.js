@@ -354,6 +354,42 @@ class WMOExporter {
 	 * @param {ExportHelper} helper
 	 * @param {Array} fileManifest
 	 */
+	/**
+	 * A group's collision triangles as OBJ indices offset by `indOfs`: the BSP's faces (MOBR),
+	 * which are what the client collides with, or without a BSP the MOPY rule: collision-only
+	 * (material 0xFF), F_COLLISION, or rendered and not detail.
+	 * @param {object} group
+	 * @param {number} indOfs
+	 * @returns {Array<number>}
+	 */
+	static collisionIndices(group, indOfs) {
+		let faces;
+		if (group.bspFaces?.length > 0) {
+			faces = [...new Set(group.bspFaces)];
+		} else {
+			faces = [];
+			const info = group.materialInfo ?? [];
+			for (let t = 0, n = group.indices.length / 3; t < n; t++) {
+				const m = info[t];
+				if (!m)
+					continue;
+
+				const render = (m.flags & 0x20) !== 0 && (m.flags & 0x04) === 0;
+				if (m.materialID === 0xFF || (m.flags & 0x08) !== 0 || render)
+					faces.push(t);
+			}
+		}
+
+		const indices = [];
+		for (const t of faces) {
+			if (t * 3 + 2 >= group.indices.length)
+				continue;
+
+			indices.push(group.indices[t * 3] + indOfs, group.indices[t * 3 + 1] + indOfs, group.indices[t * 3 + 2] + indOfs);
+		}
+		return indices;
+	}
+
 	async exportAsOBJ(out, helper, fileManifest, split_groups = false) {
 		if (split_groups) {
 			await this.exportGroupsAsSeparateOBJ(out, helper, fileManifest);
@@ -457,6 +493,7 @@ class WMOExporter {
 
 		// Iterate over groups again and fill the allocated arrays.
 		let indOfs = 0;
+		const collisionMeshes = [];
 		for (const group of groups) {
 			const indCount = group.vertices.length / 3;
 
@@ -506,6 +543,12 @@ class WMOExporter {
 
 				const matID = ((batch.flags & 2) === 2) ? batch.possibleBox2[2] : batch.materialID;
 				obj.addMesh(groupName + bI, indices, materialMap.get(matID));
+			}
+
+			if (config.modelsExportCollision) {
+				const collision = WMOExporter.collisionIndices(group, indOfs);
+				if (collision.length > 0)
+					collisionMeshes.push({ name: groupName, indices: collision });
 			}
 
 			indOfs += indCount;
@@ -638,6 +681,17 @@ class WMOExporter {
 
 		await obj.write(config.overwriteFiles);
 		fileManifest?.push({ type: 'OBJ', fileDataID: this.wmo.fileDataID, file: obj.out });
+
+		if (collisionMeshes.length > 0) {
+			const phys = new OBJWriter(ExportHelper.replaceExtension(out, '.phys.obj'));
+			phys.setVertArray(vertsArray);
+			phys.setNormalArray(normalsArray);
+			for (const mesh of collisionMeshes)
+				phys.addMesh(mesh.name, mesh.indices);
+
+			await phys.write(config.overwriteFiles);
+			fileManifest?.push({ type: 'PHYS_OBJ', fileDataID: this.wmo.fileDataID, file: phys.out });
+		}
 
 		await mtl.write(config.overwriteFiles);
 		fileManifest?.push({ type: 'MTL', fileDataID: this.wmo.fileDataID, file: mtl.out });

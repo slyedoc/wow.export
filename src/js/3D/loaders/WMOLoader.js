@@ -387,6 +387,11 @@ const WMOChunkHandlers = {
 		}
 	},
 
+	// MOBR (BSP face indices: the triangles the client collides with) [WMO Group]
+	0x4D4F4252: function(data, chunkSize) {
+		this.bspFaces = data.readUInt16LE(chunkSize / 2);
+	},
+
 	// MOVI (indices) [WMO Group]
 	0x4D4F5649: function(data, chunkSize) {
 		this.indices = data.readUInt16LE(chunkSize / 2);
